@@ -113,6 +113,68 @@ function wrapLabel(styleClass) {
     return label;
 }
 
+// The visualizer while music plays, a pause sign in its place while it's paused
+class PlayState {
+    constructor(visualizer, width, height) {
+        this.visualizer = visualizer;
+        this.actor = new St.Widget({layout_manager: new Clutter.BinLayout(), y_align: Clutter.ActorAlign.CENTER,
+            width, height});
+        this.icon = new St.Icon({icon_name: 'media-playback-pause-symbolic', icon_size: Math.round(height * 0.85),
+            x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER, visible: false, opacity: 0});
+        for (const a of [visualizer, this.icon]) {
+            a.set_pivot_point(0.5, 0.5);
+            this.actor.add_child(a);
+        }
+        this._showVis = true;
+        this._showPause = true;
+        this._playing = null;
+    }
+
+    configure(showVisualizer, showPause) {
+        this._showVis = showVisualizer;
+        this._showPause = showPause;
+        this.actor.visible = showVisualizer || showPause;
+        this._apply(false);
+    }
+
+    setColor(rgb) {
+        this.visualizer.setColor(rgb);
+        this.icon.style = `color: ${toHex(rgb)};`;
+    }
+
+    set playing(playing) {
+        if (playing === this._playing)
+            return;
+        const first = this._playing === null;
+        this._playing = playing;
+        this._apply(!first && this.actor.mapped);
+    }
+
+    _apply(animate) {
+        const playing = this._playing ?? true;
+        this._fade(this.visualizer, this._showVis && playing, animate);
+        this._fade(this.icon, this._showPause && !playing, animate);
+    }
+
+    _fade(actor, show, animate) {
+        actor.remove_all_transitions();
+        if (!animate) {
+            actor.set({visible: show, opacity: show ? 255 : 0, scale_x: 1, scale_y: 1});
+            return;
+        }
+        if (show) {
+            actor.show();
+            if (actor.opacity === 0)
+                actor.set({scale_x: 0.4, scale_y: 0.4});
+            actor.ease({opacity: 255, scale_x: 1, scale_y: 1, delay: 90, duration: 320,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK});
+        } else if (actor.visible) {
+            actor.ease({opacity: 0, scale_x: 0.4, scale_y: 0.4, duration: 140, mode: Clutter.AnimationMode.EASE_IN_QUAD,
+                onComplete: () => actor.hide()});
+        }
+    }
+}
+
 // Resting music view: cover, title, visualizer
 export class CompactMusicView {
     constructor(island) {
@@ -129,9 +191,10 @@ export class CompactMusicView {
         this.text.add_child(this.lyric);
         this.lyrics = island.lyrics;
         this.visualizer = new Visualizer(island.feed, island.settings, {bars: 5, width: 26, height: 16});
+        this.playState = new PlayState(this.visualizer, 26, 16);
         this.actor.add_child(this.cover.actor);
         this.actor.add_child(this.text);
-        this.actor.add_child(this.visualizer);
+        this.actor.add_child(this.playState.actor);
     }
 
     padding() {
@@ -152,8 +215,9 @@ export class CompactMusicView {
         this.lyric.configure(s.get_int('compact-text-width') + s.get_int('lyrics-extra-width'), s.get_boolean('scroll-titles'));
         this._accent = colors.accent;
         this.syncLyrics(false);
-        this.visualizer.visible = s.get_boolean('compact-show-visualizer') && s.get_string('visualizer-source') !== 'off';
-        this.visualizer.setColor(colors.accent);
+        this.playState.configure(s.get_boolean('compact-show-visualizer') && s.get_string('visualizer-source') !== 'off',
+            s.get_boolean('show-pause-icon'));
+        this.playState.setColor(colors.accent);
         this.actor.style = `spacing: ${s.get_int('compact-art-size') > 30 ? 12 : 10}px;`;
     }
 
@@ -181,6 +245,7 @@ export class CompactMusicView {
         this.artist.text = player.artist || '';
         this.syncLyrics(false);
         this.cover.uri = art?.uri ?? null;
+        this.playState.playing = player.playing;
         if (this.island.settings.get_boolean('art-spin'))
             this.cover.spin(player.playing);
         else
@@ -286,9 +351,10 @@ export class ExpandedMusicView {
         info.add_child(this.title);
         info.add_child(this.artist);
         this.visualizer = new Visualizer(island.feed, island.settings, {bars: 6, width: 34, height: 26});
+        this.playState = new PlayState(this.visualizer, 34, 26);
         top.add_child(this.cover.actor);
         top.add_child(info);
-        top.add_child(this.visualizer);
+        top.add_child(this.playState.actor);
         this.actor.add_child(top);
 
         this.lyrics = island.lyrics;
@@ -345,12 +411,13 @@ export class ExpandedMusicView {
         this.fixedWidth = width;
         this.actor.width = width;
         const showVis = s.get_boolean('expanded-show-visualizer') && s.get_string('visualizer-source') !== 'off';
-        this.visualizer.visible = showVis;
-        const textWidth = Math.max(60, width - art - 14 - (showVis ? 34 + 14 : 0));
+        this.playState.configure(showVis, s.get_boolean('show-pause-icon'));
+        const showSlot = showVis || s.get_boolean('show-pause-icon');
+        const textWidth = Math.max(60, width - art - 14 - (showSlot ? 34 + 14 : 0));
         this.title.configure(textWidth, s.get_boolean('scroll-titles'));
         this.artist.configure(textWidth, s.get_boolean('scroll-titles'));
         this._sourceRow.visible = s.get_boolean('expanded-show-source');
-        this.visualizer.setColor(colors.accent);
+        this.playState.setColor(colors.accent);
         this.seek.setColor(colors.accent);
         this._accent = colors.accent;
         this._syncToggles();
@@ -394,6 +461,7 @@ export class ExpandedMusicView {
         this._sourceName.text = player.sourceName;
         this.cover.uri = art?.uri ?? null;
         this._play.child.icon_name = player.playing ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
+        this.playState.playing = player.playing;
         this._prev.reactive = player.canPrevious;
         this._prev.opacity = player.canPrevious ? 255 : 90;
         this._next.reactive = player.canNext;

@@ -30,12 +30,16 @@ export class Island {
         this._tempTimer = 0;
         this._hoverTimer = 0;
         this._expanded = false;
+        this._scale = 100;
         this._view = null;
         this._visible = false;
+        this._pressed = false;
         this._lastStyle = '';
         this._scrollSum = 0;
         this._lastTrackScroll = 0;
         this._clickTimer = 0;
+        this._clickedInside = false;
+        this._mouseSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.peripherals.mouse'});
         this._wasPlaying = null;
         this.lyrics = new Lyrics(settings);
         this.lyrics.connect('changed', () => this._onLyrics(false));
@@ -77,13 +81,22 @@ export class Island {
         this._w = new Spring(40);
         this._h = new Spring(30);
         this._r = new Spring(15);
+        // Size in percent, for the little squash when the island is clicked
+        this._s = new Spring(100);
         this._timeline = new Clutter.Timeline({actor: this.actor, duration: 1000, repeat_count: -1});
         this._timeline.connect('new-frame', () => this._frame(this._timeline.get_delta() / 1000));
 
+        // At shell shutdown the stage destroys the island before the extension is told; ignore late calls then
+        this._gone = false;
+        this.actor.connect('destroy', () => {
+            this._gone = true;
+        });
         Main.layoutManager.addTopChrome(this.actor);
         Main.layoutManager.addTopChrome(this._bubble);
 
         this.actor.connect('notify::hover', () => this._onHover());
+        // Seen before any child handles the press, so clicks on the seek bar count too
+        this.actor.connect('captured-event', (a, e) => this._onCaptured(e));
         this.actor.connect('button-release-event', (a, e) => this._onClick(e));
         this.actor.connect('scroll-event', (a, e) => this._onScroll(e));
         this._bubble.connect('button-release-event', (a, e) => {
@@ -117,6 +130,11 @@ export class Island {
     // ---- What services call
 
     setMedia(player) {
+        if (this._gone) {
+            this._player?.disconnectObject(this);
+            this._player = null;
+            return;
+        }
         if (player === this._player)
             return;
         this._player?.disconnectObject(this);
@@ -181,6 +199,10 @@ export class Island {
 
     // ---- State
 
+    _musicViews() {
+        return [this._views.compact, this._views.expanded];
+    }
+
     _hasMusic() {
         return !!this._player && !!this._player.title;
     }
@@ -190,6 +212,8 @@ export class Island {
     }
 
     _syncMedia() {
+        if (this._gone)
+            return;
         const p = this._player;
         this.feed.playing = !!p?.playing;
         if (p && this._hasMusic()) {
@@ -207,9 +231,9 @@ export class Island {
                 this._wasPlaying = p.playing;
                 this.lyrics.resync();
             }
-            this._views.compact.update(p, this._art);
-            this._views.expanded.update(p, this._art);
-            if (this._view === this._views.compact || this._view === this._views.expanded)
+            for (const v of this._musicViews())
+                v.update(p, this._art);
+            if (this._musicViews().includes(this._view))
                 this.relayout();
         } else {
             this.lyrics.load(null);
@@ -234,8 +258,8 @@ export class Island {
                 return;
             this._art = art;
             if (this._player) {
-                this._views.compact.update(this._player, art);
-                this._views.expanded.update(this._player, art);
+                for (const v of this._musicViews())
+                    v.update(this._player, art);
             }
             this._restyle();
         });
@@ -284,6 +308,8 @@ export class Island {
     }
 
     _update() {
+        if (this._gone)
+            return;
         const view = this._pickView();
         if (view !== this._view)
             this._switchTo(view);
@@ -376,12 +402,12 @@ export class Island {
         view._metrics = {nw, nh, top, left, width, height};
         this._w.target = width;
         this._h.target = height;
-        this._r.target = view.expanded ? Math.min(this.settings.get_int('expanded-radius'), height / 2) : height / 2;
+        this._r.target = view.radius ? view.radius(height) : view.expanded ? Math.min(this.settings.get_int('expanded-radius'), height / 2) : height / 2;
         this._timeline.start();
     }
 
     _frame(dt) {
-        const springs = [this._w, this._h, this._r];
+        const springs = [this._w, this._h, this._r, this._s];
         springs.forEach(s => s.advance(dt));
         this._apply();
         if (springs.every(s => s.settled))
@@ -394,6 +420,12 @@ export class Island {
         const R = Math.max(0, Math.min(Math.round(this._r.value), Math.floor(Math.min(W, H) / 2)));
         this.actor.set_size(W, H);
         const attach = this.settings.get_boolean('attach-to-top');
+        const scale = Math.round(this._s.value * 10) / 1000;
+        if (scale !== this._scale) {
+            this._scale = scale;
+            this.actor.set_pivot_point(0.5, attach ? 0 : 0.5);
+            this.actor.set_scale(scale, scale);
+        }
         const style = `border-radius: ${attach ? `0 0 ${R}px ${R}px` : `${R}px`};${this._surfaceStyle}`;
         if (style !== this._lastStyle) {
             this._lastStyle = style;
@@ -456,6 +488,9 @@ export class Island {
         this._lastStyle = '';
         const speed = s.get_int('animation-speed') / 100, bounce = s.get_int('bounciness') / 100;
         [this._w, this._h, this._r].forEach(sp => sp.configure(speed, bounce));
+        // The click squash is quicker and springier than the shape, so it reads as a bounce
+        this._s.configure(speed * 1.6, 1);
+        this._s.damping = 2 * Math.sqrt(this._s.stiffness) * Math.max(0.2, 0.55 - 0.35 * bounce);
         const colors = {accent, text, background: bgBase};
         for (const view of Object.values(this._views))
             view.restyle(colors);
@@ -469,26 +504,109 @@ export class Island {
 
     // ---- Pointer
 
-    _onHover() {
+    _clearHoverTimer() {
         if (this._hoverTimer)
             GLib.source_remove(this._hoverTimer);
         this._hoverTimer = 0;
-        const hover = this.actor.hover;
-        if (hover && this.settings.get_string('expand-on') === 'click')
-            return;
-        const delay = this.settings.get_int(hover ? 'hover-open-delay' : 'hover-close-delay');
+    }
+
+    _hoverAfter(delay, callback) {
+        this._clearHoverTimer();
         this._hoverTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(1, delay), () => {
             this._hoverTimer = 0;
-            this._setExpanded(hover);
+            callback();
             return GLib.SOURCE_REMOVE;
         });
     }
 
-    _setExpanded(expanded) {
-        if (expanded === this._expanded)
+    // Hover opens the full view; leaving closes it
+    _onHover() {
+        this._clearHoverTimer();
+        // A click only counts until the pointer leaves the island
+        this._clickedInside = false;
+        if (!this.actor.hover) {
+            this._squash(false);
+            this._hoverAfter(this.settings.get_int('hover-close-delay'), () => this._setExpanded(false));
             return;
+        }
+        this._syncScale();
+        this._scheduleExpand();
+    }
+
+    _scheduleExpand() {
+        if (this._expanded || this.settings.get_string('expand-on') === 'click')
+            return;
+        this._hoverAfter(this.settings.get_int('hover-open-delay'), () => {
+            if (!this._clickedInside)
+                this._setExpanded(true);
+        });
+    }
+
+    // Clicking means the pointer is there to act, not to look: hold off hover-expanding until it leaves
+    _onCaptured(event) {
+        const type = event.type();
+        if (type === Clutter.EventType.BUTTON_PRESS) {
+            if (!this._expanded) {
+                this._clickedInside = true;
+                if (this.actor.hover)
+                    this._clearHoverTimer();
+            }
+            if (!this._onControl(event))
+                this._squash(true);
+        } else if (type === Clutter.EventType.BUTTON_RELEASE) {
+            this._squash(false);
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    // True when the press is on a button or the seek bar inside the island, which have their own feedback
+    _onControl(event) {
+        let actor = global.stage.get_event_actor(event);
+        while (actor && actor !== this.actor) {
+            if (actor.reactive)
+                return true;
+            actor = actor.get_parent();
+        }
+        return false;
+    }
+
+    // Pressed: shrinks a touch. Released: springs back with a little overshoot
+    // Size the island settles at: a little smaller (or bigger) while the pointer rests on the closed island
+    _restScale() {
+        if (this._expanded || !this.actor.hover)
+            return 100;
+        return 100 + this.settings.get_int('hover-scale');
+    }
+
+    _syncScale() {
+        const rest = this._restScale();
+        if (!this._visible || this._s.target === rest || this._pressed)
+            return;
+        this._s.target = rest;
+        this._timeline.start();
+    }
+
+    _squash(down) {
+        this._pressed = down && this.settings.get_boolean('click-bounce');
+        if (!this._visible)
+            return;
+        if (this._pressed) {
+            this._s.target = this._restScale() - 6;
+            this._s.velocity -= 90;
+            this._timeline.start();
+        } else {
+            this._syncScale();
+        }
+    }
+
+    _setExpanded(expanded) {
+        if (expanded === this._expanded) {
+            this._update();
+            return;
+        }
         this._expanded = expanded;
         this._update();
+        this._syncScale();
     }
 
     _onClick(event) {
@@ -510,7 +628,7 @@ export class Island {
                 return Clutter.EVENT_STOP;
             }
         }
-        if (this._view !== this._views.compact && this._view !== this._views.expanded)
+        if (!this._musicViews().includes(this._view))
             return Clutter.EVENT_STOP;
         const double = this.settings.get_string('double-click');
         if (double === 'none') {
@@ -524,7 +642,7 @@ export class Island {
             this._runAction(double);
             return Clutter.EVENT_STOP;
         }
-        const interval = Clutter.Settings.get_default()?.double_click_time || 400;
+        const interval = this._mouseSettings.get_int('double-click') || 400;
         this._clickTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, interval, () => {
             this._clickTimer = 0;
             this._singleClick();
@@ -534,9 +652,10 @@ export class Island {
     }
 
     _singleClick() {
-        if (this._view === this._views.compact && this.settings.get_string('expand-on') !== 'hover')
+        const resting = this._view === this._views.compact;
+        if (resting && this.settings.get_string('expand-on') !== 'hover')
             this._setExpanded(true);
-        else if (this._view === this._views.compact || this._view === this._views.expanded)
+        else if (this._musicViews().includes(this._view))
             this._runAction(this.settings.get_string('click-action'));
     }
 

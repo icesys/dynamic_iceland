@@ -152,6 +152,19 @@
       <default>true</default>
       <summary>Little bounce when the song changes</summary>
     </key>
+    <key name="click-bounce" type="b">
+      <default>true</default>
+      <summary>Squash and bounce back when clicked</summary>
+    </key>
+    <key name="hover-scale" type="i">
+      <range min="-15" max="15"/>
+      <default>-4</default>
+      <summary>Size change while hovering the closed island (%, negative shrinks)</summary>
+    </key>
+    <key name="show-pause-icon" type="b">
+      <default>true</default>
+      <summary>Pause sign in place of the visualizer while paused</summary>
+    </key>
     <key name="click-action" type="s">
       <choices><choice value="play-pause"/><choice value="next"/><choice value="previous"/><choice value="open-player"/><choice value="expand"/><choice value="settings"/><choice value="none"/></choices>
       <default>'open-player'</default>
@@ -206,7 +219,7 @@
       <summary>Thin outline around the island</summary>
     </key>
     <key name="always-show" type="b">
-      <default>false</default>
+      <default>true</default>
       <summary>Keep a small island when nothing is happening</summary>
     </key>
     <key name="idle-content" type="s">

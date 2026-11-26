@@ -232,9 +232,12 @@ export class MediaService {
         if (!player)
             return;
         this._players.delete(busName);
-        player.destroy();
-        if (player === this._current)
+        // The island lets go first: destroying drops every handler, the island's included
+        if (player === this._current) {
             this._current = null;
+            this._island.setMedia(null);
+        }
+        player.destroy();
         this._choose();
     }
 

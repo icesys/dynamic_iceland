@@ -80,6 +80,7 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g.add(b.toggle('compact-show-title', 'Title'));
         g.add(b.toggle('compact-show-artist', 'Artist', 'Under the title'));
         g.add(b.toggle('compact-show-visualizer', 'Visualizer'));
+        g.add(b.toggle('show-pause-icon', 'Pause sign when paused', 'In place of the visualizer, resting and expanded'));
         g.add(b.toggle('scroll-titles', 'Scroll long titles', 'Otherwise they end with …'));
         g = b.group(page, 'Expanded island');
         g.add(b.toggle('expanded-show-source', 'App name and icon'));
@@ -128,6 +129,8 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g.add(b.spin('animation-speed', 'Speed', '%, 100 is normal', 25, 300, 5));
         g.add(b.spin('bounciness', 'Bounciness', '%, 0 is no overshoot', 0, 100, 5));
         g.add(b.toggle('bounce-on-track-change', 'Bounce when the song changes'));
+        g.add(b.toggle('click-bounce', 'Bounce when clicked'));
+        g.add(b.spin('hover-scale', 'Size on hover', '% bigger (+) or smaller (−) while the pointer is on the island, 0 is off', -15, 15, 1));
         g = b.group(page, 'Mouse', 'These settings also open from the Extensions app');
         g.add(b.choice('click-action', 'Left click'));
         g.add(b.choice('double-click', 'Double click', 'When set, a single click waits a moment to tell them apart'));
