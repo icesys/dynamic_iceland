@@ -19,7 +19,8 @@ A Dynamic Island for GNOME Shell 49–51. It sits at the top centre of the scree
 
 ## Install from source
 
-    git clone <this repo> ~/.local/share/gnome-shell/extensions/dynamic-iceland@ice
+    git clone https://github.com/icesys/dynamic_iceland.git
+    cp -r dynamic_iceland/dynamic-iceland ~/.local/share/gnome-shell/extensions/dynamic-iceland@ice
     glib-compile-schemas ~/.local/share/gnome-shell/extensions/dynamic-iceland@ice/schemas
     # log out and back in (Wayland), then:
     gnome-extensions enable dynamic-iceland@ice
@@ -27,6 +28,8 @@ A Dynamic Island for GNOME Shell 49–51. It sits at the top centre of the scree
 Optional: install `cava` for the real audio visualizer.
 
 ## Build the upload zip for extensions.gnome.org
+
+From the `dynamic-iceland` folder:
 
     gnome-extensions pack --force --extra-source=lib --extra-source=ui --extra-source=services --extra-source=LICENSE .
 
