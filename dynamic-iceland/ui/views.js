@@ -93,6 +93,26 @@ function coverBorder(settings, accent) {
     }
 }
 
+// New lyric lines appear softly
+function fadeIn(actor, settings, enabled) {
+    actor.remove_transition('opacity');
+    const duration = settings.get_boolean('lyrics-fade') ? settings.get_int('lyrics-fade-duration') : 0;
+    if (!enabled || duration <= 0) {
+        actor.opacity = 255;
+        return;
+    }
+    actor.opacity = 0;
+    actor.ease({opacity: 255, duration, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+}
+
+function wrapLabel(styleClass) {
+    const label = new St.Label({style_class: styleClass});
+    label.clutter_text.line_wrap = true;
+    label.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+    label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    return label;
+}
+
 // Resting music view: cover, title, visualizer
 export class CompactMusicView {
     constructor(island) {
@@ -100,10 +120,17 @@ export class CompactMusicView {
         this.expanded = false;
         this.actor = new St.BoxLayout({style_class: 'iceland-compact'});
         this.cover = new Cover('iceland-cover-small');
+        this.text = vbox({style_class: 'iceland-compact-text', y_align: Clutter.ActorAlign.CENTER});
         this.title = new Marquee('iceland-compact-title');
+        this.artist = new Marquee('iceland-compact-artist');
+        this.lyric = new Marquee('iceland-compact-lyric');
+        this.text.add_child(this.title);
+        this.text.add_child(this.artist);
+        this.text.add_child(this.lyric);
+        this.lyrics = island.lyrics;
         this.visualizer = new Visualizer(island.feed, island.settings, {bars: 5, width: 26, height: 16});
         this.actor.add_child(this.cover.actor);
-        this.actor.add_child(this.title);
+        this.actor.add_child(this.text);
         this.actor.add_child(this.visualizer);
     }
 
@@ -121,13 +148,38 @@ export class CompactMusicView {
         this.cover.actor.visible = s.get_boolean('compact-show-art');
         this.title.visible = s.get_boolean('compact-show-title');
         this.title.configure(s.get_int('compact-text-width'), s.get_boolean('scroll-titles'));
+        this.artist.configure(s.get_int('compact-text-width'), s.get_boolean('scroll-titles'));
+        this.lyric.configure(s.get_int('compact-text-width') + s.get_int('lyrics-extra-width'), s.get_boolean('scroll-titles'));
+        this._accent = colors.accent;
+        this.syncLyrics(false);
         this.visualizer.visible = s.get_boolean('compact-show-visualizer') && s.get_string('visualizer-source') !== 'off';
         this.visualizer.setColor(colors.accent);
         this.actor.style = `spacing: ${s.get_int('compact-art-size') > 30 ? 12 : 10}px;`;
     }
 
+    // Shows the line being sung under the title (instead of the artist), or alone in place of both
+    syncLyrics(fade = true) {
+        const s = this.island.settings;
+        const mode = s.get_boolean('lyrics-enabled') ? s.get_string('lyrics-compact') : 'off';
+        const line = mode !== 'off' ? this.lyrics.current : null;
+        const sung = line ? line.text || '♪' : null;
+        const solo = mode === 'only' && sung !== null;
+        this.title.visible = s.get_boolean('compact-show-title') && !solo;
+        this.artist.visible = s.get_boolean('compact-show-artist') && !!this.artist.text && sung === null;
+        this.lyric.visible = sung !== null;
+        this.lyric.style = (solo ? 'font-size: 9.5pt; font-weight: 600;' : 'font-size: 8.5pt;') +
+            (s.get_boolean('lyrics-accent') && this._accent ? ` color: ${toHex(this._accent)};` : '');
+        if (sung !== null && sung !== this.lyric.text) {
+            this.lyric.text = sung;
+            fadeIn(this.lyric, s, fade);
+        }
+        this.text.visible = this.title.visible || this.artist.visible || this.lyric.visible;
+    }
+
     update(player, art) {
         this.title.text = player.title;
+        this.artist.text = player.artist || '';
+        this.syncLyrics(false);
         this.cover.uri = art?.uri ?? null;
         if (this.island.settings.get_boolean('art-spin'))
             this.cover.spin(player.playing);
@@ -239,6 +291,14 @@ export class ExpandedMusicView {
         top.add_child(this.visualizer);
         this.actor.add_child(top);
 
+        this.lyrics = island.lyrics;
+        this._lyricsBox = vbox({style_class: 'iceland-lyrics'});
+        this._lyricPrev = wrapLabel('iceland-lyric iceland-lyric-near');
+        this._lyricNow = wrapLabel('iceland-lyric iceland-lyric-now');
+        this._lyricNext = wrapLabel('iceland-lyric iceland-lyric-near');
+        [this._lyricPrev, this._lyricNow, this._lyricNext].forEach(l => this._lyricsBox.add_child(l));
+        this.actor.add_child(this._lyricsBox);
+
         this.seek = new SeekBar(us => {
             if (this.player && this.state?.trackId && this.state.canSeek) {
                 Mpris.setPosition(this.player.busName, this.state.trackId, us);
@@ -295,6 +355,31 @@ export class ExpandedMusicView {
         this._accent = colors.accent;
         this._syncToggles();
         this._syncVisibility();
+        this.syncLyrics(false);
+    }
+
+    // Previous, current and next line; returns true when the size may have changed
+    syncLyrics(fade = true) {
+        const s = this.island.settings;
+        const mode = s.get_boolean('lyrics-enabled') ? s.get_string('lyrics-expanded') : 'off';
+        const was = `${this._lyricsBox.visible}|${this._lyricPrev.text}|${this._lyricNow.text}|${this._lyricNext.text}`;
+        this._lyricsBox.visible = mode !== 'off' && this.lyrics.available;
+        if (this._lyricsBox.visible) {
+            const {lines, index} = this.lyrics;
+            const context = mode === 'context';
+            const text = i => i < 0 ? '' : i < lines.length ? lines[i].text || '♪' : '';
+            const now = index < 0 ? '♪' : text(index);
+            this._lyricPrev.text = context ? text(index - 1) : '';
+            this._lyricNext.text = context ? text(index + 1) : '';
+            this._lyricPrev.visible = !!this._lyricPrev.text;
+            this._lyricNext.visible = !!this._lyricNext.text;
+            this._lyricNow.style = s.get_boolean('lyrics-accent') && this._accent ? `color: ${toHex(this._accent)};` : null;
+            if (now !== this._lyricNow.text) {
+                this._lyricNow.text = now;
+                fadeIn(this._lyricNow, s, fade);
+            }
+        }
+        return was !== `${this._lyricsBox.visible}|${this._lyricPrev.text}|${this._lyricNow.text}|${this._lyricNext.text}`;
     }
 
     update(player, art) {
@@ -419,6 +504,56 @@ export class ExpandedMusicView {
         this.state.loop = order[(order.indexOf(this.state.loop) + 1) % 3];
         Mpris.setProperty(this.player.busName, 'LoopStatus', GLib.Variant.new_string(this.state.loop));
         this._syncToggles();
+    }
+}
+
+// A notification as a small card: app icon, the message, and who sent it underneath
+export class NotificationView {
+    constructor(island) {
+        this.island = island;
+        this.expanded = true;
+        this.actor = new St.BoxLayout({style_class: 'iceland-notification'});
+        this._icon = new St.Icon({style_class: 'iceland-notification-icon', y_align: Clutter.ActorAlign.CENTER});
+        this._text = vbox({style_class: 'iceland-notification-text', x_expand: true, y_align: Clutter.ActorAlign.CENTER});
+        this._message = wrapLabel('iceland-notification-message');
+        this._message.clip_to_allocation = true;
+        this._from = new St.Label({style_class: 'iceland-notification-from'});
+        this._from.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this._text.add_child(this._message);
+        this._text.add_child(this._from);
+        this.actor.add_child(this._icon);
+        this.actor.add_child(this._text);
+        this.onClick = null;
+    }
+
+    padding() {
+        return [12, 20, 12, 14];
+    }
+
+    restyle() {
+        const s = this.island.settings;
+        this._icon.icon_size = s.get_int('notification-icon-size');
+        this._maxText = Math.max(120, s.get_int('notification-width') - this.padding()[1] - this.padding()[3] -
+            this._icon.icon_size - 12);
+        this._text.style = `max-width: ${this._maxText}px; min-width: ${Math.min(140, this._maxText)}px;`;
+    }
+
+    show({icon, message, from, onClick}) {
+        const s = this.island.settings;
+        this._icon.gicon = gicon(icon);
+        this._from.text = from ?? '';
+        this._from.visible = !!from && s.get_boolean('notification-show-sender');
+        // Keep long messages to a few lines; a rough cut first so Pango has little to lay out
+        const lines = s.get_int('notification-lines');
+        this._message.text = 'Ag';
+        const lineHeight = this._message.get_preferred_height(-1)[1] || 18;
+        let text = message ?? '';
+        const budget = Math.floor(lines * this._maxText / 6.5);
+        if (text.length > budget)
+            text = `${text.slice(0, budget).replace(/\s+\S*$/, '')}…`;
+        this._message.text = text;
+        this._message.style = `max-height: ${Math.ceil(lineHeight * lines)}px;`;
+        this.onClick = onClick ?? null;
     }
 }
 

@@ -8,8 +8,9 @@ import * as Volume from 'resource:///org/gnome/shell/ui/status/volume.js';
 import {Spring} from '../lib/spring.js';
 import {accentFrom, backgroundFrom, parseHex, toCss, toHex} from '../lib/color.js';
 import {loadArt} from './art.js';
+import {Lyrics} from '../services/lyrics.js';
 import {AudioFeed} from './visualizer.js';
-import {CompactMusicView, ExpandedMusicView, HudView, IdleView, LiveView, NoticeView} from './views.js';
+import {CompactMusicView, ExpandedMusicView, HudView, IdleView, LiveView, NoticeView, NotificationView} from './views.js';
 
 const BUBBLE_GAP = 6;
 
@@ -34,6 +35,11 @@ export class Island {
         this._lastStyle = '';
         this._scrollSum = 0;
         this._lastTrackScroll = 0;
+        this._clickTimer = 0;
+        this._wasPlaying = null;
+        this.lyrics = new Lyrics(settings);
+        this.lyrics.connect('changed', () => this._onLyrics(false));
+        this.lyrics.connect('line', () => this._onLyrics(true));
 
         this.actor = new St.Widget({
             style_class: 'iceland',
@@ -58,6 +64,7 @@ export class Island {
             expanded: new ExpandedMusicView(this),
             hud: new HudView(this),
             notice: new NoticeView(this),
+            notification: new NotificationView(this),
             live: new LiveView(this),
             idle: new IdleView(this),
         };
@@ -91,12 +98,13 @@ export class Island {
     }
 
     destroy() {
-        for (const id of [this._tempTimer, this._hoverTimer]) {
+        for (const id of [this._tempTimer, this._hoverTimer, this._clickTimer]) {
             if (id)
                 GLib.source_remove(id);
         }
         this._artCancellable?.cancel();
         this._player?.disconnectObject(this);
+        this.lyrics.destroy();
         this._timeline.stop();
         this.settings.disconnectObject(this);
         Main.layoutManager.disconnectObject(this);
@@ -116,7 +124,10 @@ export class Island {
         this._trackKey = null;
         player?.connectObject(
             'changed', () => this._syncMedia(),
-            'seeked', () => this._views.expanded.refresh(), this);
+            'seeked', () => {
+                this._views.expanded.refresh();
+                this.lyrics.resync();
+            }, this);
         this._syncMedia();
     }
 
@@ -135,6 +146,18 @@ export class Island {
             return false;
         this._views.notice.show(opts);
         this._showTemp('notice', opts.duration ?? this.settings.get_int('notice-duration'));
+        return true;
+    }
+
+    // A notification as a card that grows out of the island, then gives way to whatever was there
+    notification(opts) {
+        if (this._fullscreenHidden())
+            return false;
+        const fresh = this._view !== this._views.notification;
+        this._views.notification.show(opts);
+        this._showTemp('notification', opts.duration ?? this.settings.get_int('notification-duration'));
+        if (!fresh)
+            this._bounce(true);
         return true;
     }
 
@@ -178,13 +201,29 @@ export class Island {
                 if (!firstTrack)
                     this._bounce();
                 this._views.expanded.refresh();
+                this.lyrics.load(p);
+            }
+            if (p.playing !== this._wasPlaying) {
+                this._wasPlaying = p.playing;
+                this.lyrics.resync();
             }
             this._views.compact.update(p, this._art);
             this._views.expanded.update(p, this._art);
             if (this._view === this._views.compact || this._view === this._views.expanded)
                 this.relayout();
+        } else {
+            this.lyrics.load(null);
+            this._trackKey = null;
+            this._wasPlaying = null;
         }
         this._update();
+    }
+
+    _onLyrics(fade) {
+        this._views.compact.syncLyrics(fade);
+        const changed = this._views.expanded.syncLyrics(fade);
+        if (this._view === this._views.compact || (changed && this._view === this._views.expanded))
+            this.relayout();
     }
 
     _loadArt(url) {
@@ -203,8 +242,8 @@ export class Island {
     }
 
     // A little squash when the song changes
-    _bounce() {
-        if (!this._visible || !this.settings.get_boolean('bounce-on-track-change'))
+    _bounce(always = false) {
+        if (!this._visible || (!always && !this.settings.get_boolean('bounce-on-track-change')))
             return;
         this._w.velocity += 260;
         this._h.velocity -= 60;
@@ -216,6 +255,9 @@ export class Island {
         if (this._tempTimer)
             GLib.source_remove(this._tempTimer);
         this._tempTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, duration, () => {
+            // A notification stays while the pointer rests on it
+            if (this._temp === 'notification' && this.actor.hover && this.settings.get_boolean('notification-hold-on-hover'))
+                return GLib.SOURCE_CONTINUE;
             this._tempTimer = 0;
             this._temp = null;
             this._update();
@@ -452,7 +494,7 @@ export class Island {
     _onClick(event) {
         const button = event.get_button();
         if (button === Clutter.BUTTON_SECONDARY) {
-            this._openPrefs();
+            this._runAction(this.settings.get_string('right-click'));
             return Clutter.EVENT_STOP;
         }
         if (button === Clutter.BUTTON_MIDDLE) {
@@ -461,18 +503,41 @@ export class Island {
         }
         if (button !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
-        if (this._view === this._views.notice && this._views.notice.onClick) {
-            this._views.notice.onClick();
-            this._dismissTemp();
+        for (const kind of ['notice', 'notification']) {
+            if (this._view === this._views[kind] && this._views[kind].onClick) {
+                this._views[kind].onClick();
+                this._dismissTemp();
+                return Clutter.EVENT_STOP;
+            }
+        }
+        if (this._view !== this._views.compact && this._view !== this._views.expanded)
+            return Clutter.EVENT_STOP;
+        const double = this.settings.get_string('double-click');
+        if (double === 'none') {
+            this._singleClick();
             return Clutter.EVENT_STOP;
         }
-        if (this._view === this._views.compact && this.settings.get_string('expand-on') !== 'hover') {
-            this._setExpanded(true);
+        // Wait a moment: a second click turns it into a double click
+        if (this._clickTimer) {
+            GLib.source_remove(this._clickTimer);
+            this._clickTimer = 0;
+            this._runAction(double);
             return Clutter.EVENT_STOP;
         }
-        if (this._view === this._views.compact || this._view === this._views.expanded)
-            this._runAction(this.settings.get_string('click-action'));
+        const interval = Clutter.Settings.get_default()?.double_click_time || 400;
+        this._clickTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, interval, () => {
+            this._clickTimer = 0;
+            this._singleClick();
+            return GLib.SOURCE_REMOVE;
+        });
         return Clutter.EVENT_STOP;
+    }
+
+    _singleClick() {
+        if (this._view === this._views.compact && this.settings.get_string('expand-on') !== 'hover')
+            this._setExpanded(true);
+        else if (this._view === this._views.compact || this._view === this._views.expanded)
+            this._runAction(this.settings.get_string('click-action'));
     }
 
     _dismissTemp() {
@@ -492,8 +557,18 @@ export class Island {
         case 'next':
             p?.next();
             break;
+        case 'previous':
+            p?.previous();
+            break;
         case 'open-player':
             p?.raise();
+            break;
+        case 'expand':
+            if (this._hasMusic())
+                this._setExpanded(!this._expanded);
+            break;
+        case 'settings':
+            this._openPrefs();
             break;
         }
     }

@@ -67,6 +67,10 @@
       <default>true</default>
       <summary>Song title in the resting island</summary>
     </key>
+    <key name="compact-show-artist" type="b">
+      <default>true</default>
+      <summary>Artist under the title in the resting island</summary>
+    </key>
     <key name="compact-show-visualizer" type="b">
       <default>true</default>
       <summary>Visualizer in the resting island</summary>
@@ -149,12 +153,12 @@
       <summary>Little bounce when the song changes</summary>
     </key>
     <key name="click-action" type="s">
-      <choices><choice value="open-player"/><choice value="play-pause"/><choice value="next"/><choice value="none"/></choices>
+      <choices><choice value="play-pause"/><choice value="next"/><choice value="previous"/><choice value="open-player"/><choice value="expand"/><choice value="settings"/><choice value="none"/></choices>
       <default>'open-player'</default>
       <summary>Left click on the music island</summary>
     </key>
     <key name="middle-click" type="s">
-      <choices><choice value="play-pause"/><choice value="next"/><choice value="open-player"/><choice value="none"/></choices>
+      <choices><choice value="play-pause"/><choice value="next"/><choice value="previous"/><choice value="open-player"/><choice value="expand"/><choice value="settings"/><choice value="none"/></choices>
       <default>'play-pause'</default>
       <summary>Middle click</summary>
     </key>
@@ -269,6 +273,103 @@
     <key name="show-caps-lock" type="b">
       <default>true</default>
       <summary>Caps Lock on / off</summary>
+    </key>
+    <key name="right-click" type="s">
+      <choices><choice value="play-pause"/><choice value="next"/><choice value="previous"/><choice value="open-player"/><choice value="expand"/><choice value="settings"/><choice value="none"/></choices>
+      <default>'settings'</default>
+      <summary>Right click action</summary>
+    </key>
+    <key name="double-click" type="s">
+      <choices><choice value="play-pause"/><choice value="next"/><choice value="previous"/><choice value="open-player"/><choice value="expand"/><choice value="settings"/><choice value="none"/></choices>
+      <default>'next'</default>
+      <summary>Double click action (single clicks wait a moment when set)</summary>
+    </key>
+    <key name="lyrics-enabled" type="b">
+      <default>true</default>
+      <summary>Show synced lyrics</summary>
+    </key>
+    <key name="lyrics-online" type="b">
+      <default>true</default>
+      <summary>Look up lyrics on lrclib.net</summary>
+    </key>
+    <key name="lyrics-folder" type="s">
+      <default>''</default>
+      <summary>Folder with .lrc files, named "Artist - Title.lrc" or "Title.lrc"</summary>
+    </key>
+    <key name="lyrics-compact" type="s">
+      <choices><choice value="under-title"/><choice value="only"/><choice value="off"/></choices>
+      <default>'under-title'</default>
+      <summary>Lyrics in the resting island</summary>
+    </key>
+    <key name="lyrics-expanded" type="s">
+      <choices><choice value="context"/><choice value="line"/><choice value="off"/></choices>
+      <default>'context'</default>
+      <summary>Lyrics in the expanded island</summary>
+    </key>
+    <key name="lyrics-accent" type="b">
+      <default>true</default>
+      <summary>Current lyric line in the accent colour</summary>
+    </key>
+    <key name="lyrics-fade" type="b">
+      <default>true</default>
+      <summary>Fade in new lyric lines</summary>
+    </key>
+    <key name="lyrics-fade-duration" type="i">
+      <range min="0" max="2000"/>
+      <default>250</default>
+      <summary>Lyric fade duration (ms)</summary>
+    </key>
+    <key name="lyrics-offset" type="i">
+      <range min="-10000" max="10000"/>
+      <default>0</default>
+      <summary>Lyrics timing offset (ms), positive shows lines earlier</summary>
+    </key>
+    <key name="lyrics-extra-width" type="i">
+      <range min="0" max="400"/>
+      <default>60</default>
+      <summary>Extra width for lyrics in the resting island (px)</summary>
+    </key>
+    <key name="lyrics-cache-revision" type="i">
+      <range min="0" max="2147483647"/>
+      <default>0</default>
+      <summary>Bumped by the preferences to clear the lyrics cache</summary>
+    </key>
+    <key name="notification-style" type="s">
+      <choices><choice value="card"/><choice value="pill"/></choices>
+      <default>'card'</default>
+      <summary>How notifications look</summary>
+    </key>
+    <key name="notification-width" type="i">
+      <range min="200" max="800"/>
+      <default>380</default>
+      <summary>Widest notification card (px)</summary>
+    </key>
+    <key name="notification-icon-size" type="i">
+      <range min="16" max="64"/>
+      <default>36</default>
+      <summary>Notification icon size (px)</summary>
+    </key>
+    <key name="notification-lines" type="i">
+      <range min="1" max="6"/>
+      <default>2</default>
+      <summary>Most message lines in a notification card</summary>
+    </key>
+    <key name="notification-icon" type="s">
+      <choices><choice value="app"/><choice value="sender"/></choices>
+      <default>'app'</default>
+      <summary>App icon or the sender picture</summary>
+    </key>
+    <key name="notification-show-sender" type="b">
+      <default>true</default>
+      <summary>Sender line under the message</summary>
+    </key>
+    <key name="notification-show-app" type="b">
+      <default>true</default>
+      <summary>App name next to the sender</summary>
+    </key>
+    <key name="notification-hold-on-hover" type="b">
+      <default>true</default>
+      <summary>Keep a notification while the pointer is on it</summary>
     </key>
   </schema>
 </schemalist>

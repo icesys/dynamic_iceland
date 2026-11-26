@@ -105,6 +105,12 @@ export class Player extends EventEmitter {
         return typeof u === 'string' ? u : '';
     }
 
+    // Track length in microseconds, 0 when unknown
+    get length() {
+        const l = Number(this._meta['mpris:length'] ?? 0);
+        return Number.isFinite(l) && l > 0 ? l : 0;
+    }
+
     get identity() {
         return this._prop(this._root, 'Identity') ?? this.busName.slice(PREFIX.length).split('.')[0];
     }

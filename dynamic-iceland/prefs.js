@@ -5,11 +5,20 @@ import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+const ACTIONS = [['play-pause', 'Play / pause'], ['next', 'Next track'], ['previous', 'Previous track'],
+    ['open-player', 'Open the player app'], ['expand', 'Expand / collapse'], ['settings', 'Open these settings'], ['none', 'Nothing']];
+
 // [value, label] pairs for the drop-downs
 const CHOICES = {
+    'right-click': ACTIONS,
+    'double-click': ACTIONS,
+    'lyrics-compact': [['under-title', 'Under the title, instead of the artist'], ['only', 'Instead of title and artist'], ['off', 'Off']],
+    'lyrics-expanded': [['context', 'Previous, current and next line'], ['line', 'Current line'], ['off', 'Off']],
+    'notification-style': [['card', 'Card: icon, message, sender'], ['pill', 'Small pill']],
+    'notification-icon': [['app', 'App icon'], ['sender', 'Sender picture, when there is one']],
     'expand-on': [['hover', 'Hover'], ['click', 'Click']],
-    'click-action': [['open-player', 'Open the player app'], ['play-pause', 'Play / pause'], ['next', 'Next track'], ['none', 'Nothing']],
-    'middle-click': [['play-pause', 'Play / pause'], ['next', 'Next track'], ['open-player', 'Open the player app'], ['none', 'Nothing']],
+    'click-action': ACTIONS,
+    'middle-click': ACTIONS,
     'scroll-action': [['volume', 'Change volume'], ['track', 'Change track'], ['none', 'Nothing']],
     'visualizer-source': [['cava', 'Real audio (cava)'], ['simulated', 'Simulated'], ['off', 'Off']],
     'visualizer-style': [['bars', 'Bars'], ['wave', 'Wave'], ['dots', 'Dots'], ['mirror', 'Mirror'], ['pulse', 'Pulse']],
@@ -69,6 +78,7 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g = b.group(page, 'Resting island');
         g.add(b.toggle('compact-show-art', 'Cover art'));
         g.add(b.toggle('compact-show-title', 'Title'));
+        g.add(b.toggle('compact-show-artist', 'Artist', 'Under the title'));
         g.add(b.toggle('compact-show-visualizer', 'Visualizer'));
         g.add(b.toggle('scroll-titles', 'Scroll long titles', 'Otherwise they end with …'));
         g = b.group(page, 'Expanded island');
@@ -79,6 +89,32 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g = b.group(page, 'Visualizer', GLib.find_program_in_path('cava') ? '' : 'Install the "cava" package for real audio levels');
         g.add(b.choice('visualizer-source', 'Source'));
         g.add(b.choice('visualizer-style', 'Style'));
+        // Lyrics
+        g = b.group(page, 'Lyrics', 'Synced lyrics from an .lrc file next to the song, your lyrics folder, or lrclib.net');
+        g.add(b.toggle('lyrics-enabled', 'Show lyrics'));
+        g.add(b.choice('lyrics-compact', 'Resting island'));
+        g.add(b.choice('lyrics-expanded', 'Expanded island'));
+        g.add(b.toggle('lyrics-accent', 'Highlight current line', 'In the accent colour'));
+        g.add(b.toggle('lyrics-fade', 'Fade in new lines'));
+        g.add(b.spin('lyrics-fade-duration', 'Fade duration', 'ms', 0, 2000, 25));
+        g.add(b.spin('lyrics-offset', 'Timing offset', 'ms, positive shows lines earlier', -10000, 10000, 100));
+        g.add(b.spin('lyrics-extra-width', 'Extra lyrics width', 'px added to the resting title width', 0, 400, 10));
+        g.add(b.toggle('lyrics-online', 'Look up online', 'Sends the song title, artist and album to lrclib.net'));
+        g.add(b.text('lyrics-folder', 'Lyrics folder'));
+        const clear = new Adw.ButtonRow({title: 'Clear saved lyrics'});
+        clear.connect('activated', () => {
+            const dir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'dynamic-iceland', 'lyrics']));
+            try {
+                const e = dir.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+                let info;
+                while ((info = e.next_file(null)))
+                    dir.get_child(info.get_name()).delete(null);
+            } catch {
+                // nothing saved yet
+            }
+            s.set_int('lyrics-cache-revision', (s.get_int('lyrics-cache-revision') + 1) % 2147483647);
+        });
+        g.add(clear);
         g = b.group(page, 'Players');
         g.add(b.list('ignored-players', 'Ignore players', 'Comma separated, e.g. firefox, chromium'));
 
@@ -92,8 +128,10 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g.add(b.spin('animation-speed', 'Speed', '%, 100 is normal', 25, 300, 5));
         g.add(b.spin('bounciness', 'Bounciness', '%, 0 is no overshoot', 0, 100, 5));
         g.add(b.toggle('bounce-on-track-change', 'Bounce when the song changes'));
-        g = b.group(page, 'Mouse', 'Right click always opens these settings');
+        g = b.group(page, 'Mouse', 'These settings also open from the Extensions app');
         g.add(b.choice('click-action', 'Left click'));
+        g.add(b.choice('double-click', 'Double click', 'When set, a single click waits a moment to tell them apart'));
+        g.add(b.choice('right-click', 'Right click'));
         g.add(b.choice('middle-click', 'Middle click'));
         g.add(b.choice('scroll-action', 'Scroll'));
         g.add(b.spin('volume-step', 'Volume step', '% per scroll', 1, 25, 1));
@@ -112,6 +150,14 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g = b.group(page, 'Notifications');
         g.add(b.toggle('show-notifications', 'Preview notifications', 'Click to open; respects Do Not Disturb'));
         g.add(b.toggle('hide-gnome-banners', 'Hide GNOME banners', 'They stay in the message list, marked as seen'));
+        g.add(b.choice('notification-style', 'Style'));
+        g.add(b.choice('notification-icon', 'Icon'));
+        g.add(b.toggle('notification-show-sender', 'Sender under the message'));
+        g.add(b.toggle('notification-show-app', 'App name next to the sender'));
+        g.add(b.spin('notification-lines', 'Message lines', 'Longer messages end with …', 1, 6, 1));
+        g.add(b.spin('notification-width', 'Card width', 'px', 200, 800, 10));
+        g.add(b.spin('notification-icon-size', 'Icon size', 'px', 16, 64, 2));
+        g.add(b.toggle('notification-hold-on-hover', 'Stay while hovered'));
         g = b.group(page, 'Durations');
         g.add(b.spin('hud-duration', 'Volume / brightness', 'ms', 300, 10000, 100));
         g.add(b.spin('notice-duration', 'Charger, Bluetooth, Caps Lock', 'ms', 500, 10000, 100));
@@ -119,7 +165,7 @@ export default class DynamicIceLandPrefs extends ExtensionPreferences {
         g = b.group(page, '');
         const reset = new Adw.ButtonRow({title: 'Reset everything to defaults'});
         reset.add_css_class('destructive-action');
-        reset.connect('activated', () => s.list_keys().forEach(key => s.reset(key)));
+        reset.connect('activated', () => s.list_keys().filter(k => k !== 'lyrics-cache-revision').forEach(key => s.reset(key)));
         g.add(reset);
     }
 }
@@ -166,6 +212,12 @@ class Builder {
             if (row.selected !== index())
                 row.selected = index();
         });
+        return row;
+    }
+
+    text(key, title) {
+        const row = new Adw.EntryRow({title, show_apply_button: true, text: this.s.get_string(key)});
+        row.connect('apply', () => this.s.set_string(key, row.text.trim()));
         return row;
     }
 
