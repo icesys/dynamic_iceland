@@ -1,0 +1,9 @@
+{
+  "name": "Dynamic iceLand",
+  "description": "A Dynamic Island for GNOME that sits at the top of the screen and springs open on hover.\n\n• Music from any player: cover art, scrolling titles, real-time audio visualizer (with cava), seek bar you can drag, shuffle and repeat\n• Colours that follow the album art\n• Volume and brightness pop-ups in place of GNOME's\n• Charger, low battery, Bluetooth devices, Caps Lock\n• Notification previews\n• Screen recording timer and download progress, with a side bubble while music plays\n• Scroll for volume or tracks, middle-click to play/pause, right-click for settings\n• Over 60 settings",
+  "uuid": "dynamic-iceland@ice",
+  "settings-schema": "org.gnome.shell.extensions.dynamic-iceland",
+  "shell-version": ["49", "50", "51"],
+  "version": 1,
+  "version-name": "1.0"
+}

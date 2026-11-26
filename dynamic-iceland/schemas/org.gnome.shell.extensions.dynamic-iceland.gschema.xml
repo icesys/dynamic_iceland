@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.dynamic-iceland" path="/org/gnome/shell/extensions/dynamic-iceland/">
+    <key name="top-offset" type="i">
+      <range min="0" max="300"/>
+      <default>6</default>
+      <summary>Gap between the top of the screen and the island (px)</summary>
+    </key>
+    <key name="horizontal-offset" type="i">
+      <range min="-2000" max="2000"/>
+      <default>0</default>
+      <summary>Move the island left (-) or right (+) from the centre (px)</summary>
+    </key>
+    <key name="attach-to-top" type="b">
+      <default>false</default>
+      <summary>Hang from the top edge like a notch (square top corners)</summary>
+    </key>
+    <key name="hide-in-fullscreen" type="b">
+      <default>true</default>
+      <summary>Hide during fullscreen apps (volume still shows)</summary>
+    </key>
+    <key name="compact-art-size" type="i">
+      <range min="16" max="48"/>
+      <default>26</default>
+      <summary>Cover size in the resting island, sets its height (px)</summary>
+    </key>
+    <key name="compact-text-width" type="i">
+      <range min="40" max="600"/>
+      <default>180</default>
+      <summary>Longest title in the resting island (px)</summary>
+    </key>
+    <key name="compact-min-width" type="i">
+      <range min="0" max="800"/>
+      <default>0</default>
+      <summary>Minimum resting width (px), 0 fits the content</summary>
+    </key>
+    <key name="expanded-width" type="i">
+      <range min="280" max="900"/>
+      <default>400</default>
+      <summary>Width of the expanded island (px)</summary>
+    </key>
+    <key name="expanded-art-size" type="i">
+      <range min="40" max="160"/>
+      <default>72</default>
+      <summary>Cover size when expanded (px)</summary>
+    </key>
+    <key name="expanded-radius" type="i">
+      <range min="0" max="80"/>
+      <default>34</default>
+      <summary>Corner radius when expanded (px)</summary>
+    </key>
+    <key name="notice-text-width" type="i">
+      <range min="80" max="600"/>
+      <default>260</default>
+      <summary>Longest text in notifications and pop-ups (px)</summary>
+    </key>
+    <key name="idle-width" type="i">
+      <range min="30" max="600"/>
+      <default>110</default>
+      <summary>Width of the idle island (px)</summary>
+    </key>
+    <key name="compact-show-art" type="b">
+      <default>true</default>
+      <summary>Cover art in the resting island</summary>
+    </key>
+    <key name="compact-show-title" type="b">
+      <default>true</default>
+      <summary>Song title in the resting island</summary>
+    </key>
+    <key name="compact-show-visualizer" type="b">
+      <default>true</default>
+      <summary>Visualizer in the resting island</summary>
+    </key>
+    <key name="expanded-show-visualizer" type="b">
+      <default>true</default>
+      <summary>Visualizer in the expanded island</summary>
+    </key>
+    <key name="expanded-show-source" type="b">
+      <default>true</default>
+      <summary>App name and icon in the expanded island</summary>
+    </key>
+    <key name="show-seekbar" type="b">
+      <default>true</default>
+      <summary>Seek bar with times in the expanded island</summary>
+    </key>
+    <key name="show-shuffle-repeat" type="b">
+      <default>true</default>
+      <summary>Shuffle and repeat buttons</summary>
+    </key>
+    <key name="scroll-titles" type="b">
+      <default>true</default>
+      <summary>Scroll long titles instead of cutting them</summary>
+    </key>
+    <key name="art-shape" type="s">
+      <choices><choice value="rounded"/><choice value="circle"/><choice value="square"/></choices>
+      <default>'rounded'</default>
+      <summary>Expanded cover shape</summary>
+    </key>
+    <key name="art-border" type="s">
+      <choices><choice value="none"/><choice value="subtle"/><choice value="accent"/></choices>
+      <default>'none'</default>
+      <summary>Frame around the cover</summary>
+    </key>
+    <key name="art-spin" type="b">
+      <default>false</default>
+      <summary>Spin the cover like a vinyl while playing</summary>
+    </key>
+    <key name="ignored-players" type="as">
+      <default>[]</default>
+      <summary>Players never shown (part of the name, e.g. firefox)</summary>
+    </key>
+    <key name="visualizer-source" type="s">
+      <choices><choice value="cava"/><choice value="simulated"/><choice value="off"/></choices>
+      <default>'cava'</default>
+      <summary>Visualizer source</summary>
+    </key>
+    <key name="visualizer-style" type="s">
+      <choices><choice value="bars"/><choice value="wave"/><choice value="dots"/><choice value="mirror"/><choice value="pulse"/></choices>
+      <default>'bars'</default>
+      <summary>Visualizer style</summary>
+    </key>
+    <key name="expand-on" type="s">
+      <choices><choice value="hover"/><choice value="click"/></choices>
+      <default>'hover'</default>
+      <summary>What expands the island</summary>
+    </key>
+    <key name="hover-open-delay" type="i">
+      <range min="0" max="3000"/>
+      <default>120</default>
+      <summary>Hover time before expanding (ms)</summary>
+    </key>
+    <key name="hover-close-delay" type="i">
+      <range min="0" max="5000"/>
+      <default>250</default>
+      <summary>Delay before collapsing after the pointer leaves (ms)</summary>
+    </key>
+    <key name="animation-speed" type="i">
+      <range min="25" max="300"/>
+      <default>100</default>
+      <summary>Animation speed (percent)</summary>
+    </key>
+    <key name="bounciness" type="i">
+      <range min="0" max="100"/>
+      <default>45</default>
+      <summary>How much the island overshoots (percent)</summary>
+    </key>
+    <key name="bounce-on-track-change" type="b">
+      <default>true</default>
+      <summary>Little bounce when the song changes</summary>
+    </key>
+    <key name="click-action" type="s">
+      <choices><choice value="open-player"/><choice value="play-pause"/><choice value="next"/><choice value="none"/></choices>
+      <default>'open-player'</default>
+      <summary>Left click on the music island</summary>
+    </key>
+    <key name="middle-click" type="s">
+      <choices><choice value="play-pause"/><choice value="next"/><choice value="open-player"/><choice value="none"/></choices>
+      <default>'play-pause'</default>
+      <summary>Middle click</summary>
+    </key>
+    <key name="scroll-action" type="s">
+      <choices><choice value="volume"/><choice value="track"/><choice value="none"/></choices>
+      <default>'volume'</default>
+      <summary>Scrolling on the island</summary>
+    </key>
+    <key name="volume-step" type="i">
+      <range min="1" max="25"/>
+      <default>5</default>
+      <summary>Volume change per scroll step (percent)</summary>
+    </key>
+    <key name="background-color" type="s">
+      <default>'#000000'</default>
+      <summary>Background colour</summary>
+    </key>
+    <key name="background-opacity" type="i">
+      <range min="0" max="100"/>
+      <default>100</default>
+      <summary>Background opacity (percent)</summary>
+    </key>
+    <key name="background-from-art" type="b">
+      <default>false</default>
+      <summary>Tint the background with the cover colour</summary>
+    </key>
+    <key name="text-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Text and icon colour</summary>
+    </key>
+    <key name="accent-color" type="s">
+      <default>'#ffffff'</default>
+      <summary>Accent colour (visualizer, seek bar, toggles)</summary>
+    </key>
+    <key name="accent-from-art" type="b">
+      <default>true</default>
+      <summary>Take the accent from the cover</summary>
+    </key>
+    <key name="hud-use-accent" type="b">
+      <default>false</default>
+      <summary>Colour the volume bar with the accent</summary>
+    </key>
+    <key name="outline" type="b">
+      <default>false</default>
+      <summary>Thin outline around the island</summary>
+    </key>
+    <key name="always-show" type="b">
+      <default>false</default>
+      <summary>Keep a small island when nothing is happening</summary>
+    </key>
+    <key name="idle-content" type="s">
+      <choices><choice value="empty"/><choice value="clock"/><choice value="date"/></choices>
+      <default>'empty'</default>
+      <summary>What the idle island shows</summary>
+    </key>
+    <key name="show-bubble" type="b">
+      <default>true</default>
+      <summary>Side bubble for recording/downloads while music shows</summary>
+    </key>
+    <key name="hud-duration" type="i">
+      <range min="300" max="10000"/>
+      <default>1500</default>
+      <summary>Volume / brightness pop-up time (ms)</summary>
+    </key>
+    <key name="notice-duration" type="i">
+      <range min="500" max="10000"/>
+      <default>2500</default>
+      <summary>Charger / Bluetooth / Caps Lock pop-up time (ms)</summary>
+    </key>
+    <key name="notification-duration" type="i">
+      <range min="1000" max="15000"/>
+      <default>4000</default>
+      <summary>Notification preview time (ms)</summary>
+    </key>
+    <key name="show-volume" type="b">
+      <default>true</default>
+      <summary>Volume and brightness (replaces GNOME pop-up)</summary>
+    </key>
+    <key name="show-power" type="b">
+      <default>true</default>
+      <summary>Charger plugged in / unplugged / full</summary>
+    </key>
+    <key name="show-low-battery" type="b">
+      <default>true</default>
+      <summary>Low battery warnings</summary>
+    </key>
+    <key name="low-battery-level" type="i">
+      <range min="5" max="50"/>
+      <default>20</default>
+      <summary>First low battery warning (percent)</summary>
+    </key>
+    <key name="show-bluetooth" type="b">
+      <default>true</default>
+      <summary>Bluetooth devices connecting</summary>
+    </key>
+    <key name="show-recording" type="b">
+      <default>true</default>
+      <summary>Screen recording timer</summary>
+    </key>
+    <key name="show-progress" type="b">
+      <default>true</default>
+      <summary>Download and copy progress</summary>
+    </key>
+    <key name="show-notifications" type="b">
+      <default>true</default>
+      <summary>Preview notifications</summary>
+    </key>
+    <key name="hide-gnome-banners" type="b">
+      <default>false</default>
+      <summary>Hide GNOME banners for notifications the island showed</summary>
+    </key>
+    <key name="show-caps-lock" type="b">
+      <default>true</default>
+      <summary>Caps Lock on / off</summary>
+    </key>
+  </schema>
+</schemalist>
